@@ -1,74 +1,78 @@
-#include "holberton.h"
+#include "main.h"
 
-/**
- * free_data - frees data structure
- *
- * @datash: data structure
- * Return: no return
- */
-void free_data(data_shell *datash)
-{
-	unsigned int i;
+int main() {
+    char *command = NULL;
+    size_t command_size = 0;
+    ssize_t read_chars;
+    pid_t pid ;
+    int status;
+    bool eof_detected = false;
+	
+    printf("Welcome to simple shell v.1.0.0 \nPress 'CTRL +D' or type 'exit' to quit)\n ");
+    while (!eof_detected) {
+        printf("[(*°▽°*)] ");
+        
+        /* Read the command*/ 
+        read_chars = getline(&command, &command_size, stdin);
+        if (read_chars == -1) {
+            if (feof(stdin)) {
+                eof_detected = true;  /* EOF detected*/ 
+            } else {
+                perror("getline");
+            }
+            break;
+        }
+        
+        /*Remove newline character */ 
+        if (read_chars > 0 && command[read_chars - 1] == '\n') {
+            command[read_chars - 1] = '\0';
+        }
 
-	for (i = 0; datash->_environ[i]; i++)
-	{
-		free(datash->_environ[i]);
-	}
+        /* Check if the user wants to exit */ 
+        if (strcmp(command, "exit") == 0) {
+            printf("Exiting...\n");
+            break;
+        }
 
-	free(datash->_environ);
-	free(datash->pid);
-}
+        /* Fork a new process*/ 
+        pid = fork();
 
-/**
- * set_data - Initialize data structure
- *
- * @datash: data structure
- * @av: argument vector
- * Return: no return
- */
-void set_data(data_shell *datash, char **av)
-{
-	unsigned int i;
+        if (pid == -1) {
+            perror("fork");
+            exit(EXIT_FAILURE);
+        } else if (pid == 0) {
+            /*Child process: execute the command using execve */ 
+            char *args[4];
+            args[0] = "/bin/sh";
+            args[1] = "-c";
+            args[2] = command;
+            args[3] = NULL;
 
-	datash->av = av;
-	datash->input = NULL;
-	datash->args = NULL;
-	datash->status = 0;
-	datash->counter = 1;
+            if (execve("/bin/sh", args, NULL) == -1) {
+                perror("execve");
+                _exit(EXIT_FAILURE);
+            }
+        } else {
+            /* Parent process: wait for the child to complete*/ 
+            waitpid(pid, &status, 0);
+            if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+                printf("Command failed to execute.\n");
+                /*error handling*/
+            } 
+            
+	    /*
+            if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+                printf("Command executed successfully.\n");
+            } else {
+                printf("Command failed to execute.\n");
+            }
+            */
+        }
+    }
 
-	for (i = 0; environ[i]; i++)
-		;
+    /* Free dynamically allocated memory*/ 
+    free(command);
 
-	datash->_environ = malloc(sizeof(char *) * (i + 1));
-
-	for (i = 0; environ[i]; i++)
-	{
-		datash->_environ[i] = _strdup(environ[i]);
-	}
-
-	datash->_environ[i] = NULL;
-	datash->pid = aux_itoa(getpid());
-}
-
-/**
- * main - Entry point
- *
- * @ac: argument count
- * @av: argument vector
- *
- * Return: 0 on success.
- */
-int main(int ac, char **av)
-{
-	data_shell datash;
-	(void) ac;
-
-	signal(SIGINT, get_sigint);
-	set_data(&datash, av);
-	shell_loop(&datash);
-	free_data(&datash);
-	if (datash.status < 0)
-		return (255);
-	return (datash.status);
+    return 0;
 }
 
